@@ -476,5 +476,16 @@ def execute_ddl_and_exports():
             conn.rollback()
 
 if __name__ == "__main__":
-    create_database()
+    # Vérification de l'existence et accessibilité de la base de données
+    db_exists = False
+    try:
+        conn = psycopg2.connect(dbname=DB_NAME, user=DB_USER, password=DB_PASS, host=DB_HOST, port=DB_PORT)
+        conn.close()
+        db_exists = True
+        print(f"ℹ️ Connexion réussie à la base '{DB_NAME}'. Pas besoin de la créer.")
+    except Exception:
+        pass
+
+    if not db_exists:
+        create_database()
     execute_ddl_and_exports()
