@@ -37,9 +37,11 @@ def load_and_prep_data():
 
         for col, mapping in transco.items():
             if col in df.columns:
-                # 1. On remplace les codes par les libellés
-                df[col] = df[col].map(mapping)
-                # 2. IMPORTANT : On remplit les vides par une chaine vide pour éviter le mélange String/Float(NaN)
+                # 1. On remplace les codes par les libellés.
+                # Le fillna(df[col]) permet de garder la valeur d'origine si elle n'est pas dans le mapping.
+                df[col] = df[col].map(mapping).fillna(df[col])
+
+                # 2. On remplit les vrais vides (ceux qui n'avaient aucune valeur à la base)
                 df[col] = df[col].fillna("Non renseigné").astype(str)
         
         return df
