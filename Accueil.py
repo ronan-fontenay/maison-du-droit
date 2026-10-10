@@ -10,11 +10,20 @@ import datetime
 sys.path.append(os.path.dirname(__file__))
 from database import get_form_config, get_options_for_table, save_entretien_complet
 
+# --- INITIALISATION DE LA CLÉ DYNAMIQUE ---
+# C'est ce compteur qui permet de forcer la réinitialisation de l'interface
+if "form_key" not in st.session_state:
+    st.session_state["form_key"] = 0
 
-# --- MODIF 2 : FONCTION DE NETTOYAGE DU FORMULAIRE ---
+
+# --- MODIF 2 : FONCTION DE NETTOYAGE DU FORMULAIRE (Méthode robuste) ---
 def clear_form():
+    # 1. On change le compteur : Streamlit recréera des widgets tout neufs !
+    st.session_state["form_key"] += 1
+
+    # 2. On nettoie les anciennes valeurs de la mémoire pour ne pas la saturer
     for key in list(st.session_state.keys()):
-        if key.startswith("in_") or key in ["multi_demandes", "multi_solutions"]:
+        if key.startswith("in_") or key.startswith("multi_"):
             del st.session_state[key]
 
 
@@ -97,6 +106,8 @@ def build_home():
     opts_solution = get_options_for_table('SOLUTION', 3)
 
     user_inputs = {}
+    # On récupère l'identifiant unique du formulaire courant
+    fk = st.session_state["form_key"]
 
     # --- TRI ET REGROUPEMENT DES CHAMPS ---
     fields_entretien = [f for f in form_config if f["section"] == "Entretien"]
@@ -120,17 +131,18 @@ def build_home():
                 if len(list_labels) < 5:
                     # MODIF 1 : Ajout de l'option (Aucun)
                     options_display = ["(Aucun)"] + list_labels
-                    val = st.radio(label, options_display, key=f"in_{col_name}", index=0, horizontal=True)
+                    # On utilise fk dans la clé pour forcer le reset
+                    val = st.radio(label, options_display, key=f"in_{col_name}_{fk}", index=0, horizontal=True)
                     user_inputs[col_name] = options_map[val] if val != "(Aucun)" else None
                 else:
                     options_display = ["Sélectionner"] + list_labels
-                    choice = st.selectbox(label, options_display, key=f"in_{col_name}")
+                    choice = st.selectbox(label, options_display, key=f"in_{col_name}_{fk}")
                     user_inputs[col_name] = options_map[choice] if choice != "Sélectionner" else None
 
             elif field["type"] == 'NUM':
-                user_inputs[col_name] = st.number_input(label, step=1, min_value=0, key=f"in_{col_name}")
+                user_inputs[col_name] = st.number_input(label, step=1, min_value=0, key=f"in_{col_name}_{fk}")
             else:
-                user_inputs[col_name] = st.text_input(label, key=f"in_{col_name}")
+                user_inputs[col_name] = st.text_input(label, key=f"in_{col_name}_{fk}")
 
     # --- BLOC 1 : CARACTÉRISTIQUES DE L'ENTRETIEN ---
     st.subheader("1. L'Entretien")
@@ -157,7 +169,7 @@ def build_home():
             "Sélectionnez une ou plusieurs qualifications :",
             options=list(opts_demande.keys()),
             label_visibility="collapsed",
-            key="multi_demandes"
+            key=f"multi_demandes_{fk}"
         )
         selected_demandes_codes = [opts_demande[lbl] for lbl in selected_demandes_labels]
 
@@ -167,7 +179,7 @@ def build_home():
             "Sélectionnez la ou les réponses apportées :",
             options=list(opts_solution.keys()),
             label_visibility="collapsed",
-            key="multi_solutions"
+            key=f"multi_solutions_{fk}"
         )
         selected_solutions_codes = [opts_solution[lbl] for lbl in selected_solutions_labels]
 
@@ -207,7 +219,7 @@ def build_home():
                     selected_solutions_codes
                 )
 
-                # MODIF 2 : Mise en mémoire du message, nettoyage et rechargement de la page
+                # Mise en mémoire du message, nettoyage intégral et rechargement de la page
                 st.session_state["success_msg"] = f"✅ Dossier complet n° **{new_num}** enregistré avec succès !"
                 clear_form()
                 st.rerun()
