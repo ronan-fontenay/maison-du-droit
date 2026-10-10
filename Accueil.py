@@ -172,41 +172,55 @@ def build_home():
         )
         selected_solutions_codes = [opts_solution[lbl] for lbl in selected_solutions_labels]
 
-    # --- BOUTON D'ACTION ---
-    st.markdown("---")
-    col_submit, _ = st.columns([1, 4])
+        # --- BOUTON D'ACTION ---
+        st.markdown("---")
 
-    with col_submit:
-        submitted = st.button("💾 Enregistrer le dossier", type="primary", use_container_width=True)
+        # 1. On affiche le message de succès S'IL EXISTE en mémoire
+        if "message_succes" in st.session_state:
+            st.success(st.session_state["message_succes"])
+            del st.session_state["message_succes"]  # On le supprime pour qu'il disparaisse à la prochaine action
 
-    if submitted:
-        # Validation minimale
-        is_valid = True
+        col_submit, col_cancel, _ = st.columns([2, 2, 4])
 
-        if "MODE" in user_inputs and user_inputs["MODE"] is None:
-            st.warning("⚠️ Le champ 'Mode de l'entretien' est requis.")
-            is_valid = False
+        with col_submit:
+            submitted = st.button("💾 Enregistrer le dossier", type="primary", use_container_width=True)
 
-        if not selected_demandes_codes:
-            st.warning("⚠️ Veuillez qualifier au moins une 'Nature de la demande'.")
-            is_valid = False
+        with col_cancel:
+            # Un bouton manuel au cas où l'usager veut juste tout effacer sans enregistrer
+            st.button("🗑️ Vider / Recommencer", on_click=clear_form, use_container_width=True)
 
-        if is_valid:
-            try:
-                new_num = save_entretien_complet(
-                    user_inputs,
-                    selected_demandes_codes,
-                    selected_solutions_codes
-                )
+        if submitted:
+            # Validation minimale
+            is_valid = True
 
-                st.success(f"✅ Dossier complet n° **{new_num}** enregistré avec succès !")
+            if "MODE" in user_inputs and user_inputs["MODE"] is None:
+                st.warning("⚠️ Le champ 'Mode de l'entretien' est requis.")
+                is_valid = False
 
-                # Le paramètre on_click exécute la fonction puis déclenche automatiquement un rerun
-                st.button("Saisir un nouveau dossier", on_click=clear_form)
+            if not selected_demandes_codes:
+                st.warning("⚠️ Veuillez qualifier au moins une 'Nature de la demande'.")
+                is_valid = False
 
-            except Exception as e:
-                st.error(f"❌ Erreur lors de l'enregistrement en base : {e}")
+            if is_valid:
+                try:
+                    # Sauvegarde en base de données
+                    new_num = save_entretien_complet(
+                        user_inputs,
+                        selected_demandes_codes,
+                        selected_solutions_codes
+                    )
 
+                    # 2. On place le message de succès dans la mémoire de Streamlit
+                    st.session_state["message_succes"] = f"✅ Dossier complet n° **{new_num}** enregistré avec succès !"
 
-if __name__ == "__main__":
-    build_home()
+                    # 3. On vide toutes les variables du formulaire en mémoire
+                    clear_form()
+
+                    # 4. On force le rechargement immédiat de la page
+                    st.rerun()
+
+                except Exception as e:
+                    st.error(f"❌ Erreur lors de l'enregistrement en base : {e}")
+
+    if __name__ == "__main__":
+        build_home()
