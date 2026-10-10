@@ -10,9 +10,18 @@ import datetime
 sys.path.append(os.path.dirname(__file__))
 from database import get_form_config, get_options_for_table, save_entretien_complet
 
+
+# --- FONCTION DE NETTOYAGE DU FORMULAIRE ---
+def clear_form():
+    # On convertit en liste pour pouvoir modifier le dictionnaire pendant l'itération
+    for key in list(st.session_state.keys()):
+        if key.startswith("in_") or key in ["multi_demandes", "multi_solutions"]:
+            del st.session_state[key]
+
+
 def build_home():
     st.set_page_config(
-        page_title="Maison du Droit - Accueil & Saisie", 
+        page_title="Maison du Droit - Accueil & Saisie",
         page_icon="🏛️",
         layout="wide",
         initial_sidebar_state="expanded"
@@ -46,7 +55,7 @@ def build_home():
             image = Image.open(logo_path)
             st.image(image, width=130)
         else:
-            st.info("🏛️") # Fallback icône si pas d'image
+            st.info("🏛️")  # Fallback icône si pas d'image
 
     with col_titre:
         st.markdown('<h1 class="main-header">Maison du Droit</h1>', unsafe_allow_html=True)
@@ -59,14 +68,17 @@ def build_home():
         c1, c2, c3 = st.columns(3)
         try:
             with c1:
-                st.page_link("pages/2_Analyse_Graphique.py", label="📊 Voir les Statistiques", icon="📈", use_container_width=True)
+                st.page_link("pages/2_Analyse_Graphique.py", label="📊 Voir les Statistiques", icon="📈",
+                             use_container_width=True)
             with c2:
-                st.page_link("pages/3_Export_Donnees.py", label="📥 Exporter les Données", icon="💾", use_container_width=True)
+                st.page_link("pages/3_Export_Donnees.py", label="📥 Exporter les Données", icon="💾",
+                             use_container_width=True)
             with c3:
-                st.page_link("pages/4_Administration.py", label="⚙️ Administration BDD", icon="🔧", use_container_width=True)
+                st.page_link("pages/4_Administration.py", label="⚙️ Administration BDD", icon="🔧",
+                             use_container_width=True)
         except Exception:
             st.warning("⚠️ Navigation désactivée en mode test (AppTest)")
-    
+
     st.markdown("---")
 
     # =========================================================================
@@ -95,7 +107,7 @@ def build_home():
     def render_field(field, col):
         col_name = field["column_name"]
         label = field["label"] if field["label"] else col_name
-        
+
         # Ignorer les champs techniques
         if col_name in ['NUM', 'DATE_ENT']:
             return
@@ -104,16 +116,16 @@ def build_home():
             if field["options"]:
                 options_map = field["options"]
                 list_labels = list(options_map.keys())
-                
+
                 # Radio pour les petits choix, Selectbox pour les grands
                 if len(list_labels) < 5:
-                    val = st.radio(label, list_labels, key=f"in_{col_name}", index=None, horizontal=True) 
+                    val = st.radio(label, list_labels, key=f"in_{col_name}", index=None, horizontal=True)
                     user_inputs[col_name] = options_map[val] if val else None
                 else:
                     options_display = ["Sélectionner"] + list_labels
                     choice = st.selectbox(label, options_display, key=f"in_{col_name}")
                     user_inputs[col_name] = options_map[choice] if choice != "Sélectionner" else None
-            
+
             elif field["type"] == 'NUM':
                 user_inputs[col_name] = st.number_input(label, step=1, min_value=0, key=f"in_{col_name}")
             else:
@@ -135,9 +147,9 @@ def build_home():
 
     # --- BLOC 3 : DÉTAILS JURIDIQUES ---
     st.subheader("3. Détails du Dossier")
-    
+
     c_dem, c_sol = st.columns(2)
-    
+
     with c_dem:
         st.markdown("##### ❓ Nature de la demande")
         selected_demandes_labels = st.multiselect(
@@ -161,7 +173,7 @@ def build_home():
     # --- BOUTON D'ACTION ---
     st.markdown("---")
     col_submit, _ = st.columns([1, 4])
-    
+
     with col_submit:
         submitted = st.button("💾 Enregistrer le dossier", type="primary", use_container_width=True)
 
@@ -170,9 +182,9 @@ def build_home():
         is_valid = True
 
         if "MODE" in user_inputs and user_inputs["MODE"] is None:
-             st.warning("⚠️ Le champ 'Mode de l'entretien' est requis.")
-             is_valid = False
-        
+            st.warning("⚠️ Le champ 'Mode de l'entretien' est requis.")
+            is_valid = False
+
         if not selected_demandes_codes:
             st.warning("⚠️ Veuillez qualifier au moins une 'Nature de la demande'.")
             is_valid = False
@@ -180,19 +192,19 @@ def build_home():
         if is_valid:
             try:
                 new_num = save_entretien_complet(
-                    user_inputs, 
-                    selected_demandes_codes, 
+                    user_inputs,
+                    selected_demandes_codes,
                     selected_solutions_codes
                 )
-                
+
                 st.success(f"✅ Dossier complet n° **{new_num}** enregistré avec succès !")
-                
-                # Bouton pour recharger la page et vider le formulaire
-                if st.button("Saisir un nouveau dossier"):
-                    st.rerun()
-                    
+
+                # Le paramètre on_click exécute la fonction puis déclenche automatiquement un rerun
+                st.button("Saisir un nouveau dossier", on_click=clear_form)
+
             except Exception as e:
                 st.error(f"❌ Erreur lors de l'enregistrement en base : {e}")
+
 
 if __name__ == "__main__":
     build_home()
