@@ -119,8 +119,10 @@ def build_home():
 
                 # Radio pour les petits choix, Selectbox pour les grands
                 if len(list_labels) < 5:
-                    val = st.radio(label, list_labels, key=f"in_{col_name}", index=None, horizontal=True)
-                    user_inputs[col_name] = options_map[val] if val else None
+                    # On ajoute une option "Vide/Aucun" pour permettre de désélectionner
+                    options_display = ["(Aucun)"] + list_labels
+                    val = st.radio(label, options_display, key=f"in_{col_name}", index=0, horizontal=True)
+                    user_inputs[col_name] = options_map[val] if val != "(Aucun)" else None
                 else:
                     options_display = ["Sélectionner"] + list_labels
                     choice = st.selectbox(label, options_display, key=f"in_{col_name}")
