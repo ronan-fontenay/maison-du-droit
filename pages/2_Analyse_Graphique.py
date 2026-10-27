@@ -124,12 +124,13 @@ if not df.empty:
             df_plot = df_filtered.copy()
 
             if var_x in ['nature_demande', 'reponse_orientation']:
-                df_plot[var_x] = df_plot[var_x].str.split(' | ')
+                # Le paramètre regex=False empêche de découper sur chaque espace
+                df_plot[var_x] = df_plot[var_x].str.split(' | ', regex=False)
                 df_plot = df_plot.explode(var_x)
                 df_plot[var_x] = df_plot[var_x].str.strip()
 
             if color_arg in ['nature_demande', 'reponse_orientation']:
-                df_plot[color_arg] = df_plot[color_arg].str.split(' | ')
+                df_plot[color_arg] = df_plot[color_arg].str.split(' | ', regex=False)
                 df_plot = df_plot.explode(color_arg)
                 df_plot[color_arg] = df_plot[color_arg].str.strip()
 
