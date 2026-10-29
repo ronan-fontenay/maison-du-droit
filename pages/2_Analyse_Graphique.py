@@ -11,6 +11,31 @@ from database import get_db_connection, get_translation_dictionary
 
 st.set_page_config(layout="wide", page_title="Analyse Graphique", page_icon="📊")
 
+# --- CSS : lisibilité des filtres ---
+st.markdown("""
+    <style>
+    /* Sidebar plus large */
+    section[data-testid="stSidebar"] {
+        width: 400px !important;
+        min-width: 400px !important;
+    }
+    /* Étiquettes des filtres : texte complet sur plusieurs lignes, couleur sobre */
+    section[data-testid="stSidebar"] .stMultiSelect [data-baseweb="tag"] {
+        max-width: 100% !important;
+        height: auto !important;
+        background-color: #2E4053 !important;
+    }
+    section[data-testid="stSidebar"] .stMultiSelect [data-baseweb="tag"] span {
+        max-width: none !important;
+        white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+        line-height: 1.3;
+        padding: 3px 0;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 # --- AJOUT LOGO SIDEBAR ---
 logo_path = "logo_mdd.png"
 if os.path.exists(logo_path):
@@ -48,6 +73,33 @@ MULTI_COLS = ['nature_demande', 'theme_demande', 'reponse_orientation', 'theme_s
 # Lien "détail -> thématique" pour une même table
 CHILD_PARENT = {'nature_demande': 'theme_demande', 'reponse_orientation': 'theme_solution'}
 SEP = ' | '
+
+# Noms lisibles des colonnes dans l'interface
+LABELS = {
+    'nature_demande': "Nature de la demande",
+    'theme_demande': "Thématique de la demande",
+    'reponse_orientation': "Réponse / Orientation",
+    'theme_solution': "Thématique de la réponse",
+    'mode': "Mode d'entretien",
+    'duree': "Durée",
+    'sexe': "Sexe",
+    'age': "Âge",
+    'vient_pr': "Vient pour",
+    'sit_fam': "Situation familiale",
+    'enfant': "Enfants à charge",
+    'modele_fam': "Modèle familial",
+    'profession': "Profession",
+    'ress': "Ressources",
+    'origine': "Origine de la demande",
+    'commune': "Commune",
+    'partenaire': "Partenaire",
+    'mois': "Mois",
+    'date_ent': "Date",
+}
+
+
+def lbl(col):
+    return LABELS.get(col, col)
 
 
 def theme_code(code):
@@ -147,7 +199,7 @@ if not df.empty:
     excluded_cols = ['num', 'date_ent', 'mois']
     available_filters = [c for c in df.columns if c not in excluded_cols]
 
-    filtres_actifs = st.sidebar.multiselect("Critères de filtrage :", available_filters)
+    filtres_actifs = st.sidebar.multiselect("Critères de filtrage :", available_filters, format_func=lbl)
 
     selections = {}  # col -> set des valeurs choisies (réutilisé pour le graphique)
     for col in filtres_actifs:
@@ -156,7 +208,30 @@ if not df.empty:
         else:
             valeurs = sorted(df[col].astype(str).unique())
 
-        choix = st.sidebar.multiselect(f"{col}", valeurs, key=f"filtre_{col}")
+        with st.sidebar.expander(lbl(col), expanded=True):
+            if col in CHILD_PARENT:
+                # Choix en 2 étapes : d'abord la thématique, puis le détail en libellé court
+                theme_map = THEME_OF.get(col, {})
+                themes_dispo = sorted({theme_map.get(v, "Non renseigné") for v in valeurs})
+                themes_sel = st.multiselect("1. Thématique", themes_dispo, key=f"theme_{col}")
+
+                opts = [v for v in valeurs if not themes_sel or theme_map.get(v, "Non renseigné") in themes_sel]
+
+                def short_label(v, _map=theme_map, _one=len(themes_sel) == 1):
+                    theme = _map.get(v)
+                    if _one and theme and v.startswith(theme) and v[len(theme):].strip():
+                        return v[len(theme):].strip()
+                    return v
+
+                choix = st.multiselect("2. Détail (facultatif)", opts, format_func=short_label,
+                                       key=f"filtre_{col}",
+                                       placeholder="Tout le détail de la thématique")
+                # Thématique choisie sans détail -> on prend tout le détail de la thématique
+                if themes_sel and not choix:
+                    choix = opts
+            else:
+                choix = st.multiselect("Valeurs", valeurs, key=f"filtre_{col}",
+                                       label_visibility="collapsed")
 
         if choix:
             choix_set = set(choix)
@@ -185,9 +260,10 @@ if not df.empty:
             type_graph = st.selectbox("Type de graphique", ["Barres", "Camembert", "Courbe", "Treemap"])
         with c2:
             cols_x = [c for c in df.columns if c != 'num']
-            var_x = st.selectbox("Axe X / Groupe principal", cols_x, index=0)
+            var_x = st.selectbox("Axe X / Groupe principal", cols_x, index=0, format_func=lbl)
         with c3:
-            var_color = st.selectbox("Segmentation (Couleur)", ["Aucun"] + [c for c in cols_x if c != var_x])
+            var_color = st.selectbox("Segmentation (Couleur)", ["Aucun"] + [c for c in cols_x if c != var_x],
+                                     format_func=lbl)
 
         color_arg = None if var_color == "Aucun" else var_color
 
@@ -241,17 +317,18 @@ if not df.empty:
 
             if type_graph == "Barres":
                 data = count_by(grp)
-                fig = px.bar(data, x=var_x, y='Dossiers', color=color_arg,
-                             title=f"Répartition par {var_x}", text_auto=True)
+                fig = px.bar(data, x=var_x, y='Dossiers', color=color_arg, labels=LABELS,
+                             title=f"Répartition par {lbl(var_x)}", text_auto=True)
             elif type_graph == "Camembert":
                 data = count_by([var_x])
-                fig = px.pie(data, names=var_x, values='Dossiers', title=f"Répartition {var_x}", hole=0.4)
+                fig = px.pie(data, names=var_x, values='Dossiers', labels=LABELS,
+                             title=f"Répartition {lbl(var_x)}", hole=0.4)
             elif type_graph == "Courbe":
                 data = count_by(grp).sort_values(var_x)
-                fig = px.line(data, x=var_x, y='Dossiers', color=color_arg, markers=True)
+                fig = px.line(data, x=var_x, y='Dossiers', color=color_arg, labels=LABELS, markers=True)
             elif type_graph == "Treemap":
                 data = count_by(grp)
-                fig = px.treemap(data, path=grp, values='Dossiers')
+                fig = px.treemap(data, path=grp, values='Dossiers', labels=LABELS)
 
             st.plotly_chart(fig, use_container_width=True)
 
